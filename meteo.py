@@ -102,7 +102,7 @@ def detect_rain_blocks(times, rain_probs, threshold=40):
 # -------------------
 om = get_weather_snapshot()
 
-    st.error("No weather data available.")
+st.error("No weather data available.")
 if om is None:
     st.stop()
 
