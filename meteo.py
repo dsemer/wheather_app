@@ -3,20 +3,14 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 
-# -------------------
-# APP CONFIG
-# -------------------
-st.set_page_config(
-    page_title="Kalamaria Weather",
-    page_icon="🌦️",
-    layout="centered"
-)
-
 LAT = 40.5825
 LON = 22.9533
 
+st.set_page_config(page_title="Weather Tomorrow", layout="centered")
+
+
 # -------------------
-# WEATHER SNAPSHOT
+# 🧊 SNAPSHOT SYSTEM
 # -------------------
 @st.cache_data(ttl=3600)
 def get_weather_snapshot():
@@ -31,32 +25,25 @@ def get_weather_snapshot():
         "timezone": "Europe/Athens"
     }
 
-    response = requests.get(url, params=params, timeout=10)
-    response.raise_for_status()
-
-    data = response.json()
+    r = requests.get(url, timeout=10, params=params)
+    data = r.json()
 
     daily = data["daily"]
     hourly = data["hourly"]
 
-    today = datetime.now().date()
-    tomorrow = today + timedelta(days=1)
+    tomorrow = (datetime.now() + timedelta(days=1)).date()
 
-    today_times = []
-    today_temps = []
-    today_rain = []
-
-    tomorrow_times = []
-    tomorrow_temps = []
-    tomorrow_rain = []
+    times = []
+    temps = []
+    rain_probs = []
 
     for i, t in enumerate(hourly["time"]):
         if str(t).startswith(str(tomorrow)):
-            tomorrow_times.append(t[11:16])
-            tomorrow_temps.append(hourly["temperature_2m"][i])
-            tomorrow_rain.append(hourly["precipitation_probability"][i])
+            times.append(t[11:16])
+            temps.append(hourly["temperature_2m"][i])
+            rain_probs.append(hourly["precipitation_probability"][i])
 
-    if not tomorrow_temps:
+    if len(temps) == 0:
         return None
 
     return {
@@ -64,15 +51,18 @@ def get_weather_snapshot():
         "min": daily["temperature_2m_min"][1],
         "rain_max": daily["precipitation_probability_max"][1],
         "wind": daily["wind_speed_10m_max"][1],
-        "times": tomorrow_times,
-        "temps": tomorrow_temps,
-        "rain_probs": tomorrow_rain,
-        "avg_temp": sum(tomorrow_temps) / len(tomorrow_temps),
+
+        "times": times,
+        "temps": temps,
+        "rain_probs": rain_probs,
+
+        "avg_temp": sum(temps) / len(temps),
         "updated": datetime.now().strftime("%H:%M:%S")
     }
 
+
 # -------------------
-# UMBRELLA LOGIC
+# 🌧️ RAIN BLOCK DETECTOR (UMBRELLA LOGIC)
 # -------------------
 def detect_rain_blocks(times, rain_probs, threshold=40):
 
@@ -80,14 +70,10 @@ def detect_rain_blocks(times, rain_probs, threshold=40):
     start = None
 
     for i in range(len(times)):
-
         if rain_probs[i] >= threshold:
-
             if start is None:
                 start = i
-
         else:
-
             if start is not None:
                 blocks.append((start, i - 1))
                 start = None
@@ -97,28 +83,25 @@ def detect_rain_blocks(times, rain_probs, threshold=40):
 
     return blocks
 
+
 # -------------------
 # LOAD DATA
 # -------------------
 om = get_weather_snapshot()
 
-st.error("No weather data available.")
 if om is None:
+    st.error("No weather data available")
     st.stop()
 
-today_tab, tomorrow_tab = st.tabs(
-["📍 Today", "🌦️ Tomorrow"]
-)
-# -------------------
-# DATAFRAME FOR GRAPH
-# -------------------
+
 df = pd.DataFrame({
     "Hour": om["times"],
-    "Temperature": om["temps"]
+    "Temp": om["temps"]
 })
 
+
 # -------------------
-# CUSTOM STYLE
+# STYLE
 # -------------------
 st.markdown("""
 <style>
@@ -132,176 +115,133 @@ st.markdown("""
 .sub {
     text-align: center;
     opacity: 0.6;
-    margin-bottom: 20px;
+    margin-bottom: 10px;
+}
+
+.card {
+    background: rgba(240,240,240,0.7);
+    padding: 14px;
+    border-radius: 16px;
+    margin-bottom: 10px;
 }
 
 .row {
-    display:flex;
-    justify-content:space-between;
-    padding:10px;
-    border-radius:10px;
-    margin-bottom:6px;
+    display: flex;
+    justify-content: space-between;
+    padding: 10px;
+    border-radius: 10px;
+    margin-bottom: 6px;
 }
 
-.hot {
-    background: rgba(255,99,71,0.25);
-}
-
-.warm {
-    background: rgba(255,165,0,0.25);
-}
-
-.cool {
-    background: rgba(135,206,250,0.25);
-}
-
-.cold {
-    background: rgba(70,130,180,0.25);
-}
+.hot { background: rgba(255, 99, 71, 0.25); }
+.warm { background: rgba(255, 165, 0, 0.25); }
+.cool { background: rgba(135, 206, 250, 0.25); }
+.cold { background: rgba(70, 130, 180, 0.25); }
 
 .rain {
-    background: rgba(30,144,255,0.25);
+    background: rgba(30, 144, 255, 0.25);
 }
 
 </style>
 """, unsafe_allow_html=True)
 
+
 # -------------------
 # HEADER
 # -------------------
-st.title("🌦️ Kalamaria Weather")
+st.title("🌦️ Kalamaria Weather (Tomorrow Snapshot)")
 
-st.markdown(
-    f"""
-    <div class="big">{om['avg_temp']:.0f}°</div>
-    <div class="sub">
-        Tomorrow Forecast • Updated {om['updated']}
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown(f"""
+<div class="big">{om['avg_temp']:.0f}°</div>
+<div class="sub">Stable forecast • updated {om['updated']}</div>
+""", unsafe_allow_html=True)
+
 
 # -------------------
-# WEATHER STATUS
-# -------------------
-if om["rain_max"] >= 70:
-    st.error("🌧️ Heavy rain likely tomorrow")
-
-elif om["rain_max"] >= 40:
-    st.warning("🌦️ Possible showers tomorrow")
-
-else:
-    st.success("☀️ Mostly dry weather expected")
-
-# -------------------
-# MAIN METRICS
+# CARDS
 # -------------------
 col1, col2 = st.columns(2)
 
 with col1:
-    st.metric(
-        "🌡️ Max Temperature",
-        f"{om['max']:.1f}°C"
-    )
+    st.markdown(f"""
+    <div class="card">
+    🌡️ Max: <b>{om['max']:.1f}°C</b>
+    </div>
 
-    st.metric(
-        "🌧️ Rain Chance",
-        f"{om['rain_max']}%"
-    )
+    <div class="card">
+    🌧️ Rain chance: <b>{om['rain_max']}%</b>
+    </div>
+    """, unsafe_allow_html=True)
 
 with col2:
-    st.metric(
-        "🌡️ Min Temperature",
-        f"{om['min']:.1f}°C"
-    )
+    st.markdown(f"""
+    <div class="card">
+    🌡️ Min: <b>{om['min']:.1f}°C</b>
+    </div>
 
-    st.metric(
-        "💨 Wind Speed",
-        f"{om['wind']:.1f} km/h"
-    )
+    <div class="card">
+    💨 Wind: <b>{om['wind']:.1f} km/h</b>
+    </div>
+    """, unsafe_allow_html=True)
+
 
 # -------------------
-# TEMPERATURE GRAPH
+# 📊 GRAPH
 # -------------------
 st.subheader("📊 Hourly Temperature")
 
-st.line_chart(
-    df.set_index("Hour"),
-    height=300
-)
+st.line_chart(df.set_index("Hour"))
+
 
 # -------------------
-# UMBRELLA SECTION
+# ☂️ UMBRELLA SYSTEM (MAIN FEATURE)
 # -------------------
 st.subheader("☂️ Umbrella Recommendation")
 
-blocks = detect_rain_blocks(
-    om["times"],
-    om["rain_probs"]
-)
+blocks = detect_rain_blocks(om["times"], om["rain_probs"])
 
 if not blocks:
-
-    st.success(
-        "No umbrella needed tomorrow 🌤️"
-    )
-
+    st.success("No umbrella needed tomorrow 🌤️")
 else:
+    for b in blocks:
 
-    for block in blocks:
+        start_time = om["times"][b[0]]
+        end_time = om["times"][b[1]]
 
-        start_time = om["times"][block[0]]
-        end_time = om["times"][block[1]]
+        max_rain = max(om["rain_probs"][b[0]:b[1] + 1])
 
-        max_rain = max(
-            om["rain_probs"][block[0]:block[1]+1]
-        )
+        st.markdown(f"""
+        <div class="row rain">
+            <div>☂️ {start_time} → {end_time}</div>
+            <div>{max_rain}% max rain</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        st.markdown(
-            f"""
-            <div class="row rain">
-                <div>☂️ {start_time} → {end_time}</div>
-                <div>{max_rain}% rain</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    st.warning("Bring an umbrella during these periods ☂️")
 
-    st.warning(
-        "Bring an umbrella during these periods ☂️"
-    )
 
 # -------------------
-# HOURLY BREAKDOWN
+# 🌈 HOURLY BREAKDOWN (COLOR CODED)
 # -------------------
-with st.expander("🕐 Hourly Forecast"):
+st.subheader("🕐 Hourly Breakdown")
 
-    for i in range(len(om["temps"])):
+for i in range(len(om["temps"])):
 
-        temp = om["temps"][i]
-        hour = om["times"][i]
-        rain = om["rain_probs"][i]
+    temp = om["temps"][i]
+    time = om["times"][i]
 
-        if temp >= 30:
-            css_class = "row hot"
+    if temp >= 30:
+        cls = "row hot"
+    elif temp >= 24:
+        cls = "row warm"
+    elif temp >= 16:
+        cls = "row cool"
+    else:
+        cls = "row cold"
 
-        elif temp >= 24:
-            css_class = "row warm"
-
-        elif temp >= 16:
-            css_class = "row cool"
-
-        else:
-            css_class = "row cold"
-
-        st.markdown(
-            f"""
-            <div class="{css_class}">
-                <div>{hour}</div>
-                <div>
-                    {temp:.1f}°C • 🌧️ {rain}%
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    st.markdown(f"""
+    <div class="{cls}">
+        <div>{time}</div>
+        <div>{temp:.1f}°C</div>
+    </div>
+    """, unsafe_allow_html=True)
