@@ -305,4 +305,3 @@ with st.expander("🕐 Hourly Forecast"):
             """,
             unsafe_allow_html=True
         )
-```
