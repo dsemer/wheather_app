@@ -1,7 +1,7 @@
-    import streamlit as st
-    import requests
-    import pandas as pd
-    from datetime import datetime, timedelta
+import streamlit as st
+import requests
+import pandas as pd
+from datetime import datetime, timedelta
 
     # -------------------
     # APP CONFIG
